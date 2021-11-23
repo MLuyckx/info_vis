@@ -1,0 +1,42 @@
+html {
+    height: 100%;
+}
+
+.headerDiv {
+    height: 10vh;
+}
+H2 {
+    margin-top: 2vh;
+    margin-left: 1vw;
+    float: left;
+}
+.importButton {
+    width: 10%;
+    height: 3vw;
+    float: right;
+    margin: 5px;
+}
+
+.metrics {
+    width: 15vw;
+    margin-left: 1vw;
+    float: left;
+    border: 1px solid grey;
+    height: 85vh;
+}
+
+.graphs {
+    width: 80vw;
+    height: 75vh;
+    margin-left: 17vw;
+}
+
+.filters {
+    width: 80vw;
+    height: 9vh;
+    margin-left: 17vw;
+    margin-top: 1vh;
+    border: 1px solid grey;
+
+    /* margin: 1vh, 1vw, 1vh, 21vw; */
+}
