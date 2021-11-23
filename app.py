@@ -125,9 +125,24 @@ app.layout = html.Div([
             children = html.Button('Import Genes', id='import-nodes', className="importButton")
         ),
     ]),
-    html.Div(className = "metrics", children = [
-        html.P("Metrics there.")
+
+    html.Div(className = "leftSide", children = [
+        html.Div(className = "layouts", children = [
+            html.P("Layouts there."),
+            dcc.RadioItems(
+                options=[
+                    {'label': 'New York City', 'value': 'NYC'},
+                    {'label': 'Montréal', 'value': 'MTL'},
+                    {'label': 'San Francisco', 'value': 'SF'}
+                ],
+                value='MTL'
+            ),
+        ]),
+        html.Div(className = "metrics", children = [
+            html.P("Metrics there.")
+        ]),
     ]),
+        
     html.Div(className = "graphs", children = [
         cy,
     ]),

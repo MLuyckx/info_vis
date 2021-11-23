@@ -17,12 +17,22 @@ H2 {
     margin: 5px;
 }
 
-.metrics {
-    width: 15vw;
-    margin-left: 1vw;
+.leftSide {
     float: left;
-    border: 1px solid grey;
+    width: 15vw;
     height: 85vh;
+    margin-left: 1vw;
+}
+
+.layouts {
+    height: 30vh;
+    border: 1px solid grey;
+    overflow-y: scroll;
+}
+
+.metrics {
+    border: 1px solid grey;
+    height: 53vh;
 }
 
 .graphs {
