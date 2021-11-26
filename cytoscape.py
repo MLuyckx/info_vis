@@ -1,8 +1,9 @@
 import dash_cytoscape as cyto
 
 class Cytoscape:
-    def newCyto(type, elements):
+    def newCyto(type, elements, id):
         myCyto = cyto.Cytoscape(
+            id=id,
             className='cytoscape-event-callbacks-1',
             elements=elements,
             layout={

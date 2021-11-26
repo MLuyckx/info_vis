@@ -9,19 +9,72 @@ from dash.dependencies import Input, Output, State
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import networkx as nx
 
+genes = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-GENES.projectindex.txt', sep="\\t",engine='python')
+interactions = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-INTERACTIONS.tab3.txt', sep="\\t",engine='python')
+
+
+interactions = interactions[interactions['Entrez Gene Interactor A'] != '-']
+interactions['Entrez Gene Interactor A'] = interactions['Entrez Gene Interactor A'].astype(int)
+
+
+
+def networkGraph(nbr_edges):
+    
+    nodes = np.array(genes['ENTREZ GENE ID'])
+    edges = np.array(interactions[['Entrez Gene Interactor A','Entrez Gene Interactor B']])
+    edges = list(map(tuple,edges))
+
+    df_attributes_e = interactions.drop(columns = ['Entrez Gene Interactor A','Entrez Gene Interactor B'])
+    df_attributes_n = genes.drop(columns = ['ENTREZ GENE ID'])
+
+    attributes_e = df_attributes_e.to_dict('records')
+    attributes_n = df_attributes_n.to_dict('records')
+
+    G = nx.Graph()
+    dico_n = dict(zip(nodes,attributes_n))
+    dico_e = dict(zip(edges,attributes_e))
+    #print(edges)
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges[:nbr_edges])
+    #print(G.edges)
+    nx.set_node_attributes(G,dico_n)
+    nx.set_edge_attributes(G,dico_e)
+    return G
+def  betweenness_centrality(G):
+    return nx.betweenness_centrality(G)
+def clustering_coefficient(G):
+    return nx.average_clustering(G)
+def minimum_spanning_tree(G):
+    return nx.algorithms.minimum_spanning_edges(G)
+def has_path(G,source,target):
+    return nx.algorithms.has_path(G,source,target)
+def shortest_path(G,source,target):
+    return nx.algorithms.shortest_path(G,source,target)
+def community(G):
+    return nx.algorithms.community.greedy_modularity_communities(G)
+G = networkGraph(500)
+el = []
+
+nodes = [
+    {
+        'data': {'id': str(id), 'label': '/','classes': 'black' },
+        'position': {'x': 0, 'y': 0}
+    }
+    for id in G.nodes
+]
+edges = [
+    {
+        'data': {'source': str(source), 'target': str(target),'classes':'red'}, 
+        'classes': 'red',
+        'position': None
+    }
+    for source,target in G.edges
+]
+el = nodes+edges
 app = dash.Dash(__name__)
 
-genes = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-GENES.projectindex.txt', sep="\\t")
-interactions = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-INTERACTIONS.tab3.txt', sep="\\t")
-
-interactions = interactions.values
-genes = genes.values
-
-tenth = int(len(interactions)/1)
-tenthInteractions = interactions[:tenth]
-
-el = []
 genesId = []
 
 genesOncogene = []
@@ -62,7 +115,7 @@ styles = {
         "float": "left"
     }
 }
-
+"""
 def loadData():
     for x in genes:
         genesId.append(x[0])
@@ -70,14 +123,14 @@ def loadData():
             'data': {'id': str(x[0]), 'label': str(x[3]), 'size': x[7]},
             'classes': 'known'
         })
-        """
+        
         if (x[18] == "Oncogene"):
             genesOncogene.append(x)
         elif (x[18] == "Tumor Suppressor"):
             genesTumorSuppressor.append(x)
         elif (x[18] == "Cancer Driver"):
             genesCancerDriver.append(x)
-        """
+        
 
     for x in interactions:
         if x[3] in genesId and x[4] in genesId:
@@ -97,12 +150,31 @@ def loadData():
                     'classes': 'red',
                     'position': None
                 })
+"""
 
-cyGrid = Cytoscape.newCyto('grid', el)
-cyConcentric = Cytoscape.newCyto('concentric', el)
-cyCircle = Cytoscape.newCyto('circle', el)
-cyBreadthfirst = Cytoscape.newCyto('breadthfirst', el)
-cyCose = Cytoscape.newCyto('cose', el)
+default_stylesheet=[
+        # Class selectors
+        {
+            'selector': 'node',
+            'style': {
+                "width" : '7',
+                "height" : '7'
+            }
+        },
+        {
+            'selector': 'edge',
+            'style':{
+                "line-color": "red",
+                "width": 0.5
+            }
+        }
+]
+
+cyGrid = Cytoscape.newCyto('grid', el, "gridCytoscape")
+cyConcentric = Cytoscape.newCyto('concentric', el, "concentricCytoscape")
+cyCircle = Cytoscape.newCyto('circle', el, "circleCytoscape")
+cyBreadthfirst = Cytoscape.newCyto('breadthfirst', el, "breadthfirstCytoscape")
+cyCose = Cytoscape.newCyto('cose', el, "coseCytoscape")
 
 global layoutActivated, addPressed, removePressed
 layoutActivated = 1
@@ -113,7 +185,6 @@ def createBasicLayout():
     app.layout = html.Div([
         html.Div(className = "headerDiv",children=[
             html.H2("PROJECT : INFORMATION VISUALISATION"),
-            html.P(id='dd-output-container'),
             dcc.Upload(
                 id="upload-edges",
                 multiple = False,
@@ -140,14 +211,24 @@ def createBasicLayout():
                         {'label': 'Breadthfirst', 'value': 'BFT'},
                         {'label': 'Cose', 'value': 'CSE'}
                     ],
-                    value = ["CSE"],
+                    value = [],
                     labelStyle = {'display': 'block'}
                 ),
                 html.Button('Add layout', id="addLayout", n_clicks=0),
                 html.Button('Remove layout', id="removeLayout", n_clicks=0)
             ]),
             html.Div(className = "metrics", children = [
-                html.P("Metrics there.")
+                html.P("Metrics there."),
+                dcc.Dropdown(
+                    id='dropdown-metrics',
+                    value='Choose a metric',
+                    clearable=False,
+                    options=[
+                        {'label': name.capitalize(), 'value': name}
+                        for name in ['Choose a metric','betweenness centrality','clustering coefficient','minimum spanning tree','shortest path','community']
+                    ]
+                ),
+                html.Div(id='dd-output-container'),  
             ]),
         ]),
             
@@ -244,7 +325,6 @@ def createBasicLayout():
         html.P(id="outputedges")
     ])
 
-loadData()
 createBasicLayout()
 
 @app.callback(  Output("graph1", 'style'),
@@ -327,11 +407,85 @@ def update_output(add_n_clicks,remove_n_clicks):
         }
     return myReturn
 
-@app.callback(  Output("graph1", 'children'),
+@app.callback(  Output("gridCytoscape", 'layout'),
                 Input('dropdown1', 'value'))
 def update_output(value):
-    layouts = {"GRD": cyGrid, "CRC": cyCircle, "CCT": cyConcentric, "BFT": cyBreadthfirst, "CSE": cyCose}
-    return layouts[value]
+    layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
+    return {
+        'name': layouts[value],
+        'animate': False
+    }
+
+@app.callback(Output('dd-output-container', 'children'),
+              Output('gridCytoscape', 'stylesheet'), 
+              Output('gridCytoscape', 'elements'),
+              Input('dropdown-metrics', 'value'))
+def update_metrics(metric):
+    if (metric == 'betweenness centrality'):
+        return 0,default_stylesheet,el
+    if (metric == 'clustering coefficient'):
+        return clustering_coefficient(G),default_stylesheet,el
+    if (metric == 'minimum spanning tree'):
+        edges = minimum_spanning_tree(G)
+        edges = np.array(list(edges))[:,:2]
+        new_edges = [
+        {
+            'data': {'source': str(source), 'target': str(target)}, 
+            'classes': 'green',
+            'position': None
+        }
+        for source,target in edges
+        ]
+        new_styles = [
+        {
+            
+            'selector': '.green',
+            'style':{
+                "line-color": "green",
+                "width": 0.5
+            }
+        }
+        ]
+        return "See minimum spanning tree on the figure",default_stylesheet+new_styles,el+new_edges
+    if (metric == 'shortest path'):
+        if (has_path(G, 5290, 308)):
+            path = shortest_path(G,5290,308)
+            edges = []
+            length = len(path)
+            for i in range (length-1):
+                edges.append((path[i],path[i+1]))
+            new_edges = [
+            {
+                'data': {'source': str(source), 'target': str(target)}, 
+                'classes': 'green',
+                'position': None
+            }
+            for source,target in edges
+            ]
+            new_styles = [
+            {
+                'selector': 'node',
+                'style':{
+                    'background-color': 'green',
+                } 
+            },   
+            {               
+                
+                'selector': '.green',
+                'style':{
+                    "line-color": "green",
+                    "width": 0.5
+                }
+            }
+            ]
+            return "The length of the path between source and target is "+str(length),default_stylesheet+new_styles,el+new_edges
+        else:
+            return "No path between source and target",default_stylesheet,el
+    if (metric == 'community'):
+        return 0,default_stylesheet,el
+    else :
+        return "Choose the proprety",default_stylesheet,el
+
 """
 @app.callback(
                 Output("graph1", 'style'),
