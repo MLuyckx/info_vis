@@ -27,23 +27,30 @@ H2 {
 .layouts {
     height: 30vh;
     border: 1px solid grey;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .metrics {
+    margin-top: 1vh;
     border: 1px solid grey;
     height: 53vh;
 }
 
-.graphs {
+#graphs {
     width: 80vw;
     height: 75vh;
     margin-left: 17vw;
 }
 
+.dropdown {
+    z-index: 10;
+    width: 100%;
+    margin: 0 -1px;
+}
+
 .filters {
     width: 80vw;
-    height: 9vh;
+    height: 8vh;
     margin-left: 17vw;
     margin-top: 1vh;
     border: 1px solid grey;
