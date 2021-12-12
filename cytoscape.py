@@ -22,7 +22,8 @@ class Cytoscape:
                     'style': {
                         "width": "mapData(size, 0, 1000, 3, 30)",
                         "height": "mapData(size, 0, 1000, 3, 30)",
-                        "opacity":0.9
+                        "opacity":0.9,
+                        "color":"red"
                     }
                 },
                 {
@@ -30,18 +31,6 @@ class Cytoscape:
                     'style':{
                         "line-color": "red",
                         "width": 0.5
-                    }
-                },
-                {
-                    'selector': '.known',
-                    'style':{
-                        "color": "yellow",
-                    }
-                },
-                {
-                    'selector': '.unknown',
-                    'style':{
-                        "color": "blue",
                     }
                 }
             ],

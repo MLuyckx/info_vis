@@ -17,6 +17,14 @@ H2 {
     margin: 5px;
 }
 
+.reloadButton {
+    width: 5%;
+    height: 3vw;
+    float: right;
+    margin: 5px;
+    border-radius: 20px;
+}
+
 .leftSide {
     float: left;
     width: 15vw;
@@ -25,20 +33,27 @@ H2 {
 }
 
 .layouts {
-    height: 30vh;
+    height: 20vh;
     border: 1px solid grey;
     overflow-y: auto;
+    text-align: center;
+}
+
+#addLayout, #removeLayout {
+    width: 75%;
+    padding: 3px;
+    margin: 5px;
 }
 
 .metrics {
     margin-top: 1vh;
     border: 1px solid grey;
-    height: 53vh;
+    height: 63vh;
 }
 
 #graphs {
     width: 80vw;
-    height: 75vh;
+    height: 72vh;
     margin-left: 17vw;
 }
 
@@ -48,12 +63,36 @@ H2 {
     margin: 0 -1px;
 }
 
+.infoFilters {
+    width: 80vw;
+    height: 4vh;
+    margin-left: 17vw;
+    margin-top: -1vh;
+}
+
+.infoFiltersText {
+    margin: 2vh;
+    text-align: center;
+}
+
 .filters {
     width: 80vw;
     height: 8vh;
     margin-left: 17vw;
-    margin-top: 1vh;
+    margin-top: -1vh;
     border: 1px solid grey;
-
     /* margin: 1vh, 1vw, 1vh, 21vw; */
+}
+
+.filterButton {
+    float: left;
+    width: 6vh;
+    height: 6vh;
+    margin : 1vh;
+    border-radius: 5px;
+}
+
+#imageNeigColor {
+    width : 150%;
+    margin-left: -25%;
 }

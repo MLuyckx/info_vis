@@ -1,5 +1,6 @@
 from cytoscape import Cytoscape
 import dash
+import dash_bootstrap_components as dbc
 import json
 import time
 from dash import dcc
@@ -11,19 +12,20 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 
-genes = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-GENES.projectindex.txt', sep="\\t",engine='python')
-interactions = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-INTERACTIONS.tab3.txt', sep="\\t",engine='python')
-
-
-interactions = interactions[interactions['Entrez Gene Interactor A'] != '-']
-interactions['Entrez Gene Interactor A'] = interactions['Entrez Gene Interactor A'].astype(int)
+#genes = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-GENES.projectindex.txt', sep="\\t",engine='python')
+#interactions = pd.read_csv('./BIOGRID-PROJECT-glioblastoma_project-INTERACTIONS.tab3.txt', sep="\\t",engine='python')
 
 
 
-def networkGraph(nbr_edges):
-    
-    nodes = np.array(genes['ENTREZ GENE ID'])
+def networkGraph(nbr_edges, genes, interactions):
+    nodes = []
+    #nodes = np.array(genes['ENTREZ GENE ID'])
     edges = np.array(interactions[['Entrez Gene Interactor A','Entrez Gene Interactor B']])
+    for edge in edges[:nbr_edges]:
+        nodes.append(edge[0])
+        nodes.append(edge[1])
+    nodes = np.array(nodes)
+
     edges = list(map(tuple,edges))
 
     df_attributes_e = interactions.drop(columns = ['Entrez Gene Interactor A','Entrez Gene Interactor B'])
@@ -35,10 +37,10 @@ def networkGraph(nbr_edges):
     G = nx.Graph()
     dico_n = dict(zip(nodes,attributes_n))
     dico_e = dict(zip(edges,attributes_e))
-    #print(edges)
+
     G.add_nodes_from(nodes)
     G.add_edges_from(edges[:nbr_edges])
-    #print(G.edges)
+
     nx.set_node_attributes(G,dico_n)
     nx.set_edge_attributes(G,dico_e)
     return G
@@ -54,34 +56,42 @@ def shortest_path(G,source,target):
     return nx.algorithms.shortest_path(G,source,target)
 def community(G):
     return nx.algorithms.community.greedy_modularity_communities(G)
-G = networkGraph(500)
+
+genes = pd.read_csv('./genes.csv', sep=";")
+interactions = pd.read_csv('interactions.csv', sep=";")
+
+interactions = interactions[interactions['Entrez Gene Interactor A'] != '-']
+interactions['Entrez Gene Interactor A'] = interactions['Entrez Gene Interactor A'].astype(int)
+
+global el,currentGraph
 el = []
+currentGraph = networkGraph(500, genes, interactions)
+def initialisation(G):
+    global el
+    nodes = [
+        {
+            'data': {'id': str(id), 'label': '/', 'size': G.degree[id]},
+            'classes': 'black'
+        }
+        for id in G.nodes
+    ]
+    edges = [
+        {
+            'data': {'id':str(data['#BioGRID Interaction ID']), 'source':str(source), 'target':str(target)}, 
+            'classes': 'red'
+        }
+        for source,target, data in G.edges.data()
+    ]
+    el = nodes+edges
 
-nodes = [
-    {
-        'data': {'id': str(id), 'label': '/','classes': 'black' },
-        'position': {'x': 0, 'y': 0}
-    }
-    for id in G.nodes
-]
-edges = [
-    {
-        'data': {'source': str(source), 'target': str(target),'classes':'red'}, 
-        'classes': 'red',
-        'position': None
-    }
-    for source,target in G.edges
-]
-el = nodes+edges
-app = dash.Dash(__name__)
+initialisation(currentGraph)
 
-genesId = []
-
-genesOncogene = []
-genesTumorSuppressor = []
-genesCancerDriver = []
-
-genesData = {}
+global cyGrid,cyConcentric, cyCircle, cyBreadthfirst, cyCose
+cyGrid = Cytoscape.newCyto('grid', el, "gridCytoscape")
+cyConcentric = Cytoscape.newCyto('concentric', el, "concentricCytoscape")
+cyCircle = Cytoscape.newCyto('circle', el, "circleCytoscape")
+cyBreadthfirst = Cytoscape.newCyto('breadthfirst', el, "breadthfirstCytoscape")
+cyCose = Cytoscape.newCyto('cose', el, "coseCytoscape")
 
 styles = {
     'GRD' : {
@@ -115,66 +125,50 @@ styles = {
         "float": "left"
     }
 }
-"""
-def loadData():
-    for x in genes:
-        genesId.append(x[0])
-        el.append({
-            'data': {'id': str(x[0]), 'label': str(x[3]), 'size': x[7]},
-            'classes': 'known'
-        })
-        
-        if (x[18] == "Oncogene"):
-            genesOncogene.append(x)
-        elif (x[18] == "Tumor Suppressor"):
-            genesTumorSuppressor.append(x)
-        elif (x[18] == "Cancer Driver"):
-            genesCancerDriver.append(x)
-        
 
-    for x in interactions:
-        if x[3] in genesId and x[4] in genesId:
-            if x[3] != x[4]:
-                if x[3] not in genesId:
-                    el.append({
-                        'data': {'id': str(x[3]), 'label': str(x[7])},
-                        'classes': 'unknown'
-                    })
-                if x[4] not in genesId:
-                    el.append({
-                        'data': {'id': str(x[4]), 'label': str(x[8])},
-                        'classes': 'unknown'
-                    })
-                el.append({
-                    'data': {'source': str(x[3]), 'target': str(x[4])}, 
-                    'classes': 'red',
-                    'position': None
-                })
-"""
+
+
+app = dash.Dash(__name__)
+
+genesId = []
+
+genesOncogene = []
+genesTumorSuppressor = []
+genesCancerDriver = []
+
+genesData = {}
 
 default_stylesheet=[
-        # Class selectors
-        {
-            'selector': 'node',
-            'style': {
-                "width" : '7',
-                "height" : '7'
-            }
-        },
-        {
-            'selector': 'edge',
-            'style':{
-                "line-color": "red",
-                "width": 0.5
-            }
+    # Class selectors
+    {
+        'selector': 'node',
+        'style': {
+            "width" : "mapData(size, 0, 100, 3, 100)",
+            "height" : "mapData(size, 0, 100, 3, 100)"
         }
+    },
+    {
+        'selector': 'edge',
+        'style':{
+            "line-color": "red",
+            "width":1
+        }
+    },
+    {
+        'selector': '.known',
+        'style':{
+            'background-color': "blue",
+            "opacity": 0.9
+        }
+    },
+    {
+        'selector': '.unknown',
+        'style':{
+            "color": "grey",
+            "opacity": 0.5
+        }
+    }
 ]
-
-cyGrid = Cytoscape.newCyto('grid', el, "gridCytoscape")
-cyConcentric = Cytoscape.newCyto('concentric', el, "concentricCytoscape")
-cyCircle = Cytoscape.newCyto('circle', el, "circleCytoscape")
-cyBreadthfirst = Cytoscape.newCyto('breadthfirst', el, "breadthfirstCytoscape")
-cyCose = Cytoscape.newCyto('cose', el, "coseCytoscape")
 
 global layoutActivated, addPressed, removePressed
 layoutActivated = 1
@@ -185,6 +179,8 @@ def createBasicLayout():
     app.layout = html.Div([
         html.Div(className = "headerDiv",children=[
             html.H2("PROJECT : INFORMATION VISUALISATION"),
+            html.Button('Reload data', id='reloadData', className="reloadButton"),
+            html.P(id='pid'),
             dcc.Upload(
                 id="upload-edges",
                 multiple = False,
@@ -194,26 +190,12 @@ def createBasicLayout():
                 id="upload-nodes",
                 multiple = False,
                 children = html.Button('Import Genes', id='import-nodes', className="importButton")
-            ),
+            )
         ]),
 
         html.Div(className = "leftSide", children = [
             html.Div(className = "layouts", children = [
-                html.P("Layouts disponibles :"),
-                
-                dcc.Checklist(
-                    id="checklistLayouts",
-                    options=[
-                        #available names = ('preset'), ('random'), 'grid', 'circle', 'concentric', 'breadthfirst', 'cose'
-                        {'label': 'Grid', 'value': 'GRD'},
-                        {'label': 'Circle', 'value': 'CRC'},
-                        {'label': 'Concentric', 'value': 'CCT'},
-                        {'label': 'Breadthfirst', 'value': 'BFT'},
-                        {'label': 'Cose', 'value': 'CSE'}
-                    ],
-                    value = [],
-                    labelStyle = {'display': 'block'}
-                ),
+                html.P("Affichage des layouts"),
                 html.Button('Add layout', id="addLayout", n_clicks=0),
                 html.Button('Remove layout', id="removeLayout", n_clicks=0)
             ]),
@@ -225,8 +207,9 @@ def createBasicLayout():
                     clearable=False,
                     options=[
                         {'label': name.capitalize(), 'value': name}
-                        for name in ['Choose a metric','betweenness centrality','clustering coefficient','minimum spanning tree','shortest path','community']
-                    ]
+                        for name in ['betweenness centrality','clustering coefficient','minimum spanning tree','shortest path','community']
+                    ],
+                    placeholder="Select a metric"
                 ),
                 html.Div(id='dd-output-container'),  
             ]),
@@ -243,7 +226,7 @@ def createBasicLayout():
                     {'label': 'Breadthfirst', 'value': 'BFT'},
                     {'label': 'Cose', 'value': 'CSE'}
                 ],
-                value='GRD'
+                placeholder="Select a layout"
             ),
             dcc.Dropdown(
                 id="dropdown2",
@@ -255,7 +238,7 @@ def createBasicLayout():
                     {'label': 'Breadthfirst', 'value': 'BFT'},
                     {'label': 'Cose', 'value': 'CSE'}
                 ],
-                value='GRD'
+                placeholder="Select a layout"
             ),
             dcc.Dropdown(
                 id="dropdown3",
@@ -267,7 +250,7 @@ def createBasicLayout():
                     {'label': 'Breadthfirst', 'value': 'BFT'},
                     {'label': 'Cose', 'value': 'CSE'}
                 ],
-                value='GRD'
+                placeholder="Select a layout"
             ),
             dcc.Dropdown(
                 id="dropdown4",
@@ -279,7 +262,7 @@ def createBasicLayout():
                     {'label': 'Breadthfirst', 'value': 'BFT'},
                     {'label': 'Cose', 'value': 'CSE'}
                 ],
-                value='GRD'
+                placeholder="Select a layout"
             ),
             dcc.Dropdown(
                 id="dropdown5",
@@ -291,7 +274,7 @@ def createBasicLayout():
                     {'label': 'Breadthfirst', 'value': 'BFT'},
                     {'label': 'Cose', 'value': 'CSE'}
                 ],
-                value='GRD'
+                placeholder="Select a layout"
             ),
             html.Div(id="graph1", children = [
                 cyGrid
@@ -315,8 +298,18 @@ def createBasicLayout():
             style=styles['CSE'])
         ],
         ),
+
+        html.Div(className = "infoFilters", children = [
+            html.P("Nothing there for the moment", id="infoFiltersText", className="infoFiltersText")
+        ]),
+
         html.Div(className = "filters", children = [
-            html.P("Filters there.")
+            html.Button(
+                html.Img(
+                    src="./assets/star.png",
+                    id="imageNeigColor"
+                ),
+                id='neigColor', className="filterButton")
         ]),
         
         html.P(id='cytoscape-tapNodeData-json'),
@@ -407,9 +400,56 @@ def update_output(add_n_clicks,remove_n_clicks):
         }
     return myReturn
 
+
 @app.callback(  Output("gridCytoscape", 'layout'),
                 Input('dropdown1', 'value'))
 def update_output(value):
+    if value==None:
+        return None
+    layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
+    return {
+        'name': layouts[value],
+        'animate': False
+    }
+
+@app.callback(  Output("circleCytoscape", 'layout'),
+                Input('dropdown2', 'value'))
+def update_output(value):
+    if value==None:
+        return None
+    layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
+    return {
+        'name': layouts[value],
+        'animate': False
+    }
+
+@app.callback(  Output("concentricCytoscape", 'layout'),
+                Input('dropdown3', 'value'))
+def update_output(value):
+    if value==None:
+        return None
+    layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
+    return {
+        'name': layouts[value],
+        'animate': False
+    }
+
+@app.callback(  Output("breadthfirstCytoscape", 'layout'),
+                Input('dropdown4', 'value'))
+def update_output(value):
+    if value==None:
+        return None
+    layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
+    return {
+        'name': layouts[value],
+        'animate': False
+    }
+
+@app.callback(  Output("coseCytoscape", 'layout'),
+                Input('dropdown5', 'value'))
+def update_output(value):
+    if value==None:
+        return None
     layouts = {"GRD": "grid", "CRC": "circle", "CCT": "concentric", "BFT": "breadthfirst", "CSE": "cose"}
     return {
         'name': layouts[value],
@@ -418,42 +458,39 @@ def update_output(value):
 
 @app.callback(Output('dd-output-container', 'children'),
               Output('gridCytoscape', 'stylesheet'), 
+              Output('concentricCytoscape', 'stylesheet'),
+              Output('circleCytoscape', 'stylesheet'),
+              Output('breadthfirstCytoscape', 'stylesheet'),
+              Output('coseCytoscape', 'stylesheet'),
               Output('gridCytoscape', 'elements'),
-              Input('dropdown-metrics', 'value'))
-def update_metrics(metric):
-    if (metric == 'betweenness centrality'):
-        return 0,default_stylesheet,el
-    if (metric == 'clustering coefficient'):
-        return clustering_coefficient(G),default_stylesheet,el
-    if (metric == 'minimum spanning tree'):
-        edges = minimum_spanning_tree(G)
-        edges = np.array(list(edges))[:,:2]
-        new_edges = [
-        {
-            'data': {'source': str(source), 'target': str(target)}, 
-            'classes': 'green',
-            'position': None
-        }
-        for source,target in edges
-        ]
-        new_styles = [
-        {
-            
-            'selector': '.green',
-            'style':{
-                "line-color": "green",
-                "width": 0.5
-            }
-        }
-        ]
-        return "See minimum spanning tree on the figure",default_stylesheet+new_styles,el+new_edges
-    if (metric == 'shortest path'):
-        if (has_path(G, 5290, 308)):
-            path = shortest_path(G,5290,308)
-            edges = []
-            length = len(path)
-            for i in range (length-1):
-                edges.append((path[i],path[i+1]))
+              Output('concentricCytoscape', 'elements'),
+              Output('circleCytoscape', 'elements'),
+              Output('breadthfirstCytoscape', 'elements'),
+              Output('coseCytoscape', 'elements'),
+              Input('dropdown-metrics', 'value'),
+              Input('reloadData', 'n_clicks'),
+              Input('gridCytoscape', 'tapNode'),
+              Input('concentricCytoscape', 'tapNode'),
+              Input('circleCytoscape', 'tapNode'),
+              Input('breadthfirstCytoscape', 'tapNode'),
+              Input('coseCytoscape', 'tapNode'))
+def update_metrics(metric, n_clicks, node1, node2, node3, node4, node5):
+    ctx = dash.callback_context
+    inputType = ctx.triggered[0]['prop_id'].split('.')[0]
+    global currentGraph
+    ############################################################################
+    
+    # Metrics calculation
+
+    ############################################################################
+    if inputType == "dropdown-metrics":
+        if (metric == 'betweenness centrality'):
+            return 0,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
+        if (metric == 'clustering coefficient'):
+            return clustering_coefficient(currentGraph),default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
+        if (metric == 'minimum spanning tree'):
+            edges = minimum_spanning_tree(currentGraph)
+            edges = np.array(list(edges))[:,:2]
             new_edges = [
             {
                 'data': {'source': str(source), 'target': str(target)}, 
@@ -464,187 +501,213 @@ def update_metrics(metric):
             ]
             new_styles = [
             {
-                'selector': 'node',
-                'style':{
-                    'background-color': 'green',
-                } 
-            },   
-            {               
                 
                 'selector': '.green',
                 'style':{
                     "line-color": "green",
-                    "width": 0.5
+                    "width": 1
                 }
             }
             ]
-            return "The length of the path between source and target is "+str(length),default_stylesheet+new_styles,el+new_edges
-        else:
-            return "No path between source and target",default_stylesheet,el
-    if (metric == 'community'):
-        return 0,default_stylesheet,el
-    else :
-        return "Choose the proprety",default_stylesheet,el
+            return "See minimum spanning tree on the figure", default_stylesheet+new_styles,default_stylesheet+new_styles,default_stylesheet+new_styles,default_stylesheet+new_styles,default_stylesheet+new_styles, el+new_edges, el+new_edges, el+new_edges, el+new_edges, el+new_edges
 
-"""
-@app.callback(
-                Output("graph1", 'style'),
-                Output("graph2", 'style'),
-                Output("graph3", 'style'),
-                Output("graph4", 'style'),
-                Output("graph5", 'style'),
-                Input('checklistLayouts', 'value'))
-def update_output(n_clicks):
-    basicStyle = {
-        'width': '0%', 
-        'height': '100%',
-        'border': '0px solid grey'
-    }
-    grdDisplay = "block"
-    crcDisplay = "block"
-    cctDisplay = "block"
-    bftDisplay = "block"
-    cseDisplay = "block"
-
-    if "GRD" in n_clicks:
-        cyGrid.style["width"] = str(99/len(n_clicks)) + "%"
-    else:
-        cyGrid.style["width"] = "0%"
-        grdDisplay = "None"
-    if "CRC" in n_clicks:
-        cyCircle.style["width"] = str(99/len(n_clicks)) + "%"
-    else:
-        cyCircle.style["width"] = "0%"
-        crcDisplay = "None"
-    if "CCT" in n_clicks:
-        cyConcentric.style["width"] = str(99/len(n_clicks)) + "%"
-    else:
-        cyConcentric.style["width"] = "0%"
-        cctDisplay = "None"
-    if "BFT" in n_clicks:
-        cyBreadthfirst.style["width"] = str(99/len(n_clicks)) + "%"
-    else:
-        cyBreadthfirst.style["width"] = "0%"
-        bftDisplay = "None"
-    if "CSE" in n_clicks:
-        cyCose.style["width"] = str(100/len(n_clicks)) + "%"
-    else:
-        cyCose.style["width"] = "0%"    
-        cseDisplay = "None"
-    grdWidth = {"width": cyGrid.style["width"], "height":"100%", "float":"left", "display":grdDisplay}
-    crcWidth = {"width": cyCircle.style["width"], "height":"100%", "float":"left", "display":crcDisplay}
-    cctWidth = {"width": cyConcentric.style["width"], "height":"100%", "float":"left", "display":cctDisplay}
-    bftWidth = {"width": cyBreadthfirst.style["width"], "height":"100%", "float":"left", "display":bftDisplay}
-    cseWidth = {"width": cyCose.style["width"], "height":"100%", "float":"left", "display":cseDisplay}
-
-    print(grdWidth, crcWidth,cctWidth,bftWidth,cseWidth)
-    return grdWidth, crcWidth, cctWidth,bftWidth,cseWidth
-"""
-"""
-@app.callback(  Output('graph1', 'style'),
-                Output('graph2', 'style'),
-                Output('graph3', 'style'),
-                Output('graph4', 'style'),
-                Output('graph5', 'style'),
-                Output('graph1', 'children'),
-                Output('graph2', 'children'),
-                Output('graph3', 'children'),
-                Output('graph4', 'children'),
-                Output('graph5', 'children'),
-                Input('checklistLayouts', 'value'))
-def update_output(n_clicks):
-    newStyles = {
-        'GRD' : {
-            "width" : "0%",
-            "height": "0vh",
-            "margin": "0",
-            "float": "left",
-        },
-        'CRC' : {
-            "width" : "0%",
-            "height": "0vh",
-            "margin": "0",
-            "float": "left",
-        },
-        'CCT' : {
-            "width" : "0%",
-            "height": "0vh",
-            "margin": "0",
-            "float": "left",
-        },
-        'BFT' : {
-            "width" : "0%",
-            "height": "0vh",
-            "margin": "0",
-            "float": "left",
-        },
-        'CSE' : {
-            "width" : "0%",
-            "height": "0vh",
-            "margin": "0",
-            "float": "left",
-        }
-    }
-
-    if len(n_clicks) == 0:
-        return styles["GRD"], styles["CRC"], styles["CCT"], styles["BFT"], styles["CSE"], None, None, None, None, None
-    order = ["GRD", "CRC", "CCT", "BFT", "CSE"]
-    n_clicks = sorted(n_clicks, key=lambda x:order.index(x))
-    width = "0%"
-    height = "0vh"
-    lastWidth = "100%"
-    lastHeight = "75vh"
-    if len(n_clicks) == 2:
-        width = "49%"
-        height = "75vh"
-        lastWidth = "49%"
-        lastHeight = "75vh"
-    if len(n_clicks) == 3:
-        width = "49%"
-        height = "37vh"
-        lastWidth = "100%"
-        lastHeight = "37vh"
-    if len(n_clicks) == 4:
-        width = "49%"
-        height = "37vh"
-        lastWidth = "49%"
-        lastHeight = "37vh"
-    if len(n_clicks) == 5:
-        width = "50%"
-        height = "24vh"
-        lastWidth = "100%"
-        lastHeight = "25vh"
-
-    for graph in styles:
-        if graph in n_clicks:
-            if graph != n_clicks[len(n_clicks) - 1]:
-                newStyles[graph]["width"] = width
-                newStyles[graph]["height"] = height
+        if (metric == 'shortest path'):
+            if (has_path(currentGraph, 5290, 308)):
+                path = shortest_path(currentGraph,5290,308)
+                edges = []
+                length = len(path)
+                for i in range (length-1):
+                    edges.append((path[i],path[i+1]))
+                new_edges = [
+                {
+                    'data': {'source': str(source), 'target': str(target)}, 
+                    'classes': 'green',
+                    'position': None
+                }
+                for source,target in edges
+                ]
+                new_styles = [
+                {
+                    'selector': 'node',
+                    'style':{
+                        'background-color': 'green',
+                    } 
+                },   
+                {               
+                    
+                    'selector': '.green',
+                    'style':{
+                        "line-color": "green",
+                        "width": 1
+                    }
+                }
+                ]
+                return "The length of the path between source and target is "+str(length), default_stylesheet+new_styles, default_stylesheet+new_styles,default_stylesheet+new_styles,default_stylesheet+new_styles,default_stylesheet+new_styles,el+new_edges, el+new_edges, el+new_edges, el+new_edges, el+new_edges
             else:
-                newStyles[graph]["width"] = lastWidth
-                newStyles[graph]["height"] = lastHeight
+                return "No path between source and target", default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, el, el, el, el, el
+                
+        if (metric == 'community'):
+            return 0, default_stylesheet, el, el, el, el, el
+        else :
+            return "Choose the proprety", default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, el, el, el, el, el
+    ############################################################################
+    
+    # Reload Data
+
+    ############################################################################
+    elif inputType == "reloadData":
+        global newNodesData, newEdgesData
+        if len(newNodesData) and len(newEdgesData):
+            newGraph = networkGraph(100, newNodesData, newEdgesData)
+            initialisation(newGraph)
+            currentGraph = newGraph
+        return "Choose the proprety", default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, el, el, el, el, el
+    
+    elif inputType in ['gridCytoscape','concentricCytoscape','circleCytoscape','breadthfirstCytoscape','coseCytoscape']:
+        newStyle = []
+        checkNode = {
+            'gridCytoscape': node1,
+            'concentricCytoscape': node2,
+            'circleCytoscape': node3,
+            'breadthfirstCytoscape': node4,
+            'coseCytoscape': node5
+        }
+        finalNode = checkNode[inputType]
+        if finalNode:
+            for edge in finalNode["edgesData"]:
+                if edge['source'] == finalNode['data']['id']:
+                    newStyle.append({
+                        "selector": 'node[id = "{}"]'.format(edge['target']),
+                        "style": {
+                            'background-color': "green",
+                            'opacity': 0.9
+                        }
+                    })
+                    newStyle.append({
+                        "selector": 'edge[id= "{}"]'.format(edge['id']),
+                        "style": {
+                            "line-color": "green",
+                            'opacity': 0.9,
+                            'z-index': 5000
+                        }
+                    })
+                if edge['target'] == finalNode['data']['id']:
+                    newStyle.append({
+                        "selector": 'node[id = "{}"]'.format(edge['source']),
+                        "style": {
+                            'background-color': "green",
+                            'opacity': 0.9
+                        }
+                    })
+                    newStyle.append({
+                        "selector": 'edge[id= "{}"]'.format(edge['id']),
+                        "style": {
+                            "line-color": "green",
+                            'opacity': 0.9,
+                            'z-index': 5000
+                        }
+                    })
+            return "Selected Node", default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, el, el, el, el, el, 
         else:
-            newStyles[graph]["width"] = "0%"
-            newStyles[graph]["height"] = "0vh"  
+            return "Nothing there for the moment", default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
+    else:
+        return "Choose the proprety",default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
 
-    return newStyles["GRD"], newStyles["CRC"], newStyles["CCT"], newStyles["BFT"], newStyles["CSE"], cyGrid, cyCircle, cyConcentric, cyBreadthfirst, cyCose
-"""
 
-@app.callback(Output('outputnodes', 'children'),
+
+global newNodesData, newEdgesData
+newNodesData = []
+newEdgesData = []
+
+@app.callback(Output('import-nodes', 'children'),
               Input('upload-nodes', 'contents'),
               State('upload-nodes', 'filename'))
 def update_output(list_of_contents, list_of_names):
+    global newNodesData
     if list_of_contents is not None:
-        print(pd.read_csv(list_of_names).values)
+        newNodesData = pd.read_csv(list_of_names, sep=";")
+        if list_of_names:
+            return list_of_names
+        else:
+            return "Import Genes"
+    return "Import Genes"
 
-@app.callback(Output('outputedges', 'children'),
+@app.callback(Output('import-edges', 'children'),
               Input('upload-edges', 'contents'),
               State('upload-edges', 'filename'))
 def update_output(list_of_contents, list_of_names):
+    global newEdgesData
     if list_of_contents is not None:
-        print(pd.read_csv(list_of_names).values)
+        newEdgesData = pd.read_csv(list_of_names, sep=";")
+        newEdgesData = newEdgesData[newEdgesData['Entrez Gene Interactor A'] != '-']
+        newEdgesData['Entrez Gene Interactor A'] = newEdgesData['Entrez Gene Interactor A'].astype(int)
+        if list_of_names:
+            return list_of_names
+        else:
+            return "Import Interactions"
+    return "Import Interactions"
+"""
+@app.callback(Output('infoFiltersText', 'children'),
+              Output('gridCytoscape', 'stylesheet'),
+              Input('gridCytoscape', 'tapNode'))
+def update_output(node):
+    default_stylesheet=[
+            # Class selectors
+            {
+                'selector': 'node',
+                'style': {
+                    "width" : "mapData(size, 0, 100, 3, 100)",
+                    "height" : "mapData(size, 0, 100, 3, 100)"
+                }
+            },
+            {
+                'selector': 'edge',
+                'style':{
+                    "line-color": "red",
+                    "width":1
+                }
+            },
+            {
+                'selector': '.known',
+                'style':{
+                    'background-color': "blue",
+                    "opacity": 0.9
+                }
+            },
+            {
+                'selector': '.unknown',
+                'style':{
+                    "color": "grey",
+                    "opacity": 0.5
+                }
+            }
+        ]
+    if node:
+        for edge in node["edgesData"]:
+            if edge['source'] == node['data']['id']:
+                default_stylesheet.append({
+                    "selector": 'node[id = "{}"]'.format(edge['target']),
+                    "style": {
+                        'background-color': "green",
+                        'opacity': 0.9
+                    }
+                })
+            if edge['target'] == node['data']['id']:
+                default_stylesheet.append({
+                    "selector": 'node[id = "{}"]'.format(edge['source']),
+                    "style": {
+                        'background-color': "green",
+                        'opacity': 0.9
+                    }
+                })
+        
+        return "Selected Node", default_stylesheet
+    else:
+        return "Nothing there for the moment", default_stylesheet
 
 """
+"""
+
 @app.callback(Output('cytoscape-tapNodeData-json', 'children'),
               Input('cytoscape-event-callbacks-1', 'tapNodeData'))
 def displayTapNodeData(data):
