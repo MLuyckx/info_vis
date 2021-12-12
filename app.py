@@ -18,18 +18,18 @@ import networkx as nx
 
 
 def networkGraph(nbr_edges, genes, interactions):
-    nodes = []
-    #nodes = np.array(genes['ENTREZ GENE ID'])
+    newGenes = genes.copy()
+    newGenes = newGenes.iloc[len(newGenes.index):,:]
     edges = np.array(interactions[['Entrez Gene Interactor A','Entrez Gene Interactor B']])
     for edge in edges[:nbr_edges]:
-        nodes.append(edge[0])
-        nodes.append(edge[1])
-    nodes = np.array(nodes)
+        toAdd1 = genes[genes["ENTREZ GENE ID"] == edge[0]]
+        newGenes = newGenes.append(toAdd1)
+    nodes = np.array(newGenes['ENTREZ GENE ID'])
 
     edges = list(map(tuple,edges))
 
     df_attributes_e = interactions.drop(columns = ['Entrez Gene Interactor A','Entrez Gene Interactor B'])
-    df_attributes_n = genes.drop(columns = ['ENTREZ GENE ID'])
+    df_attributes_n = newGenes.drop(columns = ['ENTREZ GENE ID'])
 
     attributes_e = df_attributes_e.to_dict('records')
     attributes_n = df_attributes_n.to_dict('records')
@@ -63,9 +63,10 @@ interactions = pd.read_csv('interactions.csv', sep=";")
 interactions = interactions[interactions['Entrez Gene Interactor A'] != '-']
 interactions['Entrez Gene Interactor A'] = interactions['Entrez Gene Interactor A'].astype(int)
 
-global el,currentGraph
+global el,currentGraph, filterSelected
 el = []
-currentGraph = networkGraph(500, genes, interactions)
+currentGraph = networkGraph(1000, genes, interactions)
+filterSelected = None
 def initialisation(G):
     global el
     nodes = [
@@ -309,7 +310,19 @@ def createBasicLayout():
                     src="./assets/star.png",
                     id="imageNeigColor"
                 ),
-                id='neigColor', className="filterButton")
+                id='neigColor', 
+                className="filterButton",
+                title="Show neighbors"
+            ),
+            html.Button(
+                html.Img(
+                    src="./assets/classes.png",
+                    id="imageClassColor"
+                ),
+                id='classColor', 
+                className="filterButton",
+                title="Show subcategories"
+            ),
         ]),
         
         html.P(id='cytoscape-tapNodeData-json'),
@@ -342,6 +355,7 @@ def update_output(add_n_clicks,remove_n_clicks):
         removePressed = remove_n_clicks
     else:
         layoutActivated = 1
+
     width = str(99/layoutActivated) + "%"
     widthTab = {"width1":{"width":"0%", "display": "none"}, "width2":{"width":"0%", "display": "none"}, "width3":{"width":"0%", "display": "none"}, "width4":{"width":"0%", "display": "none"}, "width5":{"width":"0%", "display": "none"}}
     for i,wth in enumerate(widthTab):
@@ -456,6 +470,31 @@ def update_output(value):
         'animate': False
     }
 
+
+@app.callback(Output('infoFiltersText', 'children'),
+              Input('neigColor', 'n_clicks'),
+              Input('classColor', 'n_clicks'))
+def update_output(neigColor_clicks, classColor_clicks):
+    global filterSelected
+    ctx = dash.callback_context
+    inputType = ctx.triggered[0]['prop_id'].split('.')[0]
+    if inputType == 'neigColor':
+        if filterSelected == 'neigColor':
+            filterSelected = None
+            return " "
+        else:
+            filterSelected = 'neigColor'
+        return "Select a node on a graph."
+    elif inputType == 'classColor':
+        if filterSelected == 'classColor':
+            filterSelected = None
+            return " "
+        else:
+            filterSelected = 'classColor'
+        return "Green : Oncogene |Yellow : Tumor Suppressor | Blue : Cancer Driver"
+    else:
+        return " "
+
 @app.callback(Output('dd-output-container', 'children'),
               Output('gridCytoscape', 'stylesheet'), 
               Output('concentricCytoscape', 'stylesheet'),
@@ -473,8 +512,9 @@ def update_output(value):
               Input('concentricCytoscape', 'tapNode'),
               Input('circleCytoscape', 'tapNode'),
               Input('breadthfirstCytoscape', 'tapNode'),
-              Input('coseCytoscape', 'tapNode'))
-def update_metrics(metric, n_clicks, node1, node2, node3, node4, node5):
+              Input('coseCytoscape', 'tapNode'),
+              Input('classColor', 'n_clicks'))
+def update_metrics(metric, n_clicks, node1, node2, node3, node4, node5, classColor):
     ctx = dash.callback_context
     inputType = ctx.triggered[0]['prop_id'].split('.')[0]
     global currentGraph
@@ -562,54 +602,93 @@ def update_metrics(metric, n_clicks, node1, node2, node3, node4, node5):
             initialisation(newGraph)
             currentGraph = newGraph
         return "Choose the proprety", default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, el, el, el, el, el
+    ############################################################################
     
+    # Filters processing
+
+    ############################################################################
     elif inputType in ['gridCytoscape','concentricCytoscape','circleCytoscape','breadthfirstCytoscape','coseCytoscape']:
+        if filterSelected == 'neigColor':
+            newStyle = []
+            checkNode = {
+                'gridCytoscape': node1,
+                'concentricCytoscape': node2,
+                'circleCytoscape': node3,
+                'breadthfirstCytoscape': node4,
+                'coseCytoscape': node5
+            }
+            finalNode = checkNode[inputType]
+            if finalNode:
+                for edge in finalNode["edgesData"]:
+                    if edge['source'] == finalNode['data']['id']:
+                        newStyle.append({
+                            "selector": 'node[id = "{}"]'.format(edge['target']),
+                            "style": {
+                                'background-color': "green",
+                                'opacity': 0.9
+                            }
+                        })
+                        newStyle.append({
+                            "selector": 'edge[id= "{}"]'.format(edge['id']),
+                            "style": {
+                                "line-color": "green",
+                                'opacity': 0.9,
+                                'z-index': 5000
+                            }
+                        })
+                    if edge['target'] == finalNode['data']['id']:
+                        newStyle.append({
+                            "selector": 'node[id = "{}"]'.format(edge['source']),
+                            "style": {
+                                'background-color': "green",
+                                'opacity': 0.9
+                            }
+                        })
+                        newStyle.append({
+                            "selector": 'edge[id= "{}"]'.format(edge['id']),
+                            "style": {
+                                "line-color": "green",
+                                'opacity': 0.9,
+                                'z-index': 5000
+                            }
+                        })
+                return "Choose the proprety", default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, el, el, el, el, el
+            else:
+                return "Choose the proprety", default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
+        else: 
+           return "Choose the proprety",default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el 
+    elif inputType == 'classColor':
+        if filterSelected is None:
+           return "Choose the proprety", default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, default_stylesheet, el, el, el, el, el 
         newStyle = []
-        checkNode = {
-            'gridCytoscape': node1,
-            'concentricCytoscape': node2,
-            'circleCytoscape': node3,
-            'breadthfirstCytoscape': node4,
-            'coseCytoscape': node5
-        }
-        finalNode = checkNode[inputType]
-        if finalNode:
-            for edge in finalNode["edgesData"]:
-                if edge['source'] == finalNode['data']['id']:
-                    newStyle.append({
-                        "selector": 'node[id = "{}"]'.format(edge['target']),
-                        "style": {
-                            'background-color': "green",
-                            'opacity': 0.9
-                        }
-                    })
-                    newStyle.append({
-                        "selector": 'edge[id= "{}"]'.format(edge['id']),
-                        "style": {
-                            "line-color": "green",
-                            'opacity': 0.9,
-                            'z-index': 5000
-                        }
-                    })
-                if edge['target'] == finalNode['data']['id']:
-                    newStyle.append({
-                        "selector": 'node[id = "{}"]'.format(edge['source']),
-                        "style": {
-                            'background-color': "green",
-                            'opacity': 0.9
-                        }
-                    })
-                    newStyle.append({
-                        "selector": 'edge[id= "{}"]'.format(edge['id']),
-                        "style": {
-                            "line-color": "green",
-                            'opacity': 0.9,
-                            'z-index': 5000
-                        }
-                    })
-            return "Selected Node", default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, el, el, el, el, el, 
-        else:
-            return "Nothing there for the moment", default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
+        for node in currentGraph.nodes.data():
+            if node[1] == {}:
+                return "Choose the proprety", default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, el, el, el, el, el
+            if node[1]['SUBCATEGORY VALUES'] == "Oncogene":
+                newStyle.append({
+                    "selector": 'node[id = "{}"]'.format(node[0]),
+                    "style": {
+                        'background-color': "green",
+                        'opacity': 0.9
+                    }
+                })
+            elif node[1]['SUBCATEGORY VALUES'] == "Tumor suppressor":
+                newStyle.append({
+                    "selector": 'node[id = "{}"]'.format(node[0]),
+                    "style": {
+                        'background-color': "yellow",
+                        'opacity': 0.9
+                    }
+                })
+            elif node[1]['SUBCATEGORY VALUES'] == "Cancer driver":
+                newStyle.append({
+                    "selector": 'node[id = "{}"]'.format(node[0]),
+                    "style": {
+                        'background-color': "blue",
+                        'opacity': 0.9
+                    }
+                })
+        return "Choose the proprety", default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, default_stylesheet+newStyle, el, el, el, el, el
     else:
         return "Choose the proprety",default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,default_stylesheet,el,el,el,el,el
 
@@ -646,78 +725,5 @@ def update_output(list_of_contents, list_of_names):
         else:
             return "Import Interactions"
     return "Import Interactions"
-"""
-@app.callback(Output('infoFiltersText', 'children'),
-              Output('gridCytoscape', 'stylesheet'),
-              Input('gridCytoscape', 'tapNode'))
-def update_output(node):
-    default_stylesheet=[
-            # Class selectors
-            {
-                'selector': 'node',
-                'style': {
-                    "width" : "mapData(size, 0, 100, 3, 100)",
-                    "height" : "mapData(size, 0, 100, 3, 100)"
-                }
-            },
-            {
-                'selector': 'edge',
-                'style':{
-                    "line-color": "red",
-                    "width":1
-                }
-            },
-            {
-                'selector': '.known',
-                'style':{
-                    'background-color': "blue",
-                    "opacity": 0.9
-                }
-            },
-            {
-                'selector': '.unknown',
-                'style':{
-                    "color": "grey",
-                    "opacity": 0.5
-                }
-            }
-        ]
-    if node:
-        for edge in node["edgesData"]:
-            if edge['source'] == node['data']['id']:
-                default_stylesheet.append({
-                    "selector": 'node[id = "{}"]'.format(edge['target']),
-                    "style": {
-                        'background-color': "green",
-                        'opacity': 0.9
-                    }
-                })
-            if edge['target'] == node['data']['id']:
-                default_stylesheet.append({
-                    "selector": 'node[id = "{}"]'.format(edge['source']),
-                    "style": {
-                        'background-color': "green",
-                        'opacity': 0.9
-                    }
-                })
-        
-        return "Selected Node", default_stylesheet
-    else:
-        return "Nothing there for the moment", default_stylesheet
-
-"""
-"""
-
-@app.callback(Output('cytoscape-tapNodeData-json', 'children'),
-              Input('cytoscape-event-callbacks-1', 'tapNodeData'))
-def displayTapNodeData(data):
-    if json.dumps(data, indent=2) != "null":
-        print(type(json.dumps(data, indent=2)))
-        #return json.dumps(data, indent=2)
-"""
-
-#method_list = [method for method in dir(utils) if method.startswith('__') is False]
-#print(method_list)
-
 
 app.run_server(debug=True)

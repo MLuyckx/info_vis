@@ -92,7 +92,7 @@ H2 {
     border-radius: 5px;
 }
 
-#imageNeigColor {
+#imageNeigColor, #imageClassColor {
     width : 150%;
     margin-left: -25%;
 }
