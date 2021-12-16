@@ -52,15 +52,43 @@ H2 {
 }
 
 #graphs {
-    width: 80vw;
+    width: 65vw;
     height: 72vh;
     margin-left: 17vw;
+}
+
+#dataInformation {
+    width: 15vw;
+    height: 72vh;
+    margin-left: 82vw;
+    margin-top: -72vh;
+    border: 1px solid grey;
+    overflow: scroll;
+}
+
+#dataInformationText {
+    /* white-space: pre-line; */
+    display: block;
+    white-space: pre-wrap;
+}
+
+tr, td, th {
+    border: 1px solid gray;
+    padding: 1vh;
+}
+
+table {
+    border-collapse: collapse;
 }
 
 .dropdown {
     z-index: 10;
     width: 100%;
     margin: 0 -1px;
+}
+
+.filters .Select-control, #graphs .Select-control {
+    width:inherit !important;
 }
 
 .infoFilters {
@@ -84,15 +112,33 @@ H2 {
     /* margin: 1vh, 1vw, 1vh, 21vw; */
 }
 
+.nodeColor, .edgeColor {
+    border: 2px dotted grey;
+    width: 40vh;
+    height: 7vh;
+    float: left;
+    margin: -0.5vh 1vh 0;
+}
+
 .filterButton {
     float: left;
     width: 6vh;
     height: 6vh;
     margin : 1vh;
     border-radius: 5px;
+    margin-top: 0.5vh;
 }
 
-#imageNeigColor, #imageClassColor {
+.filterDropdown {
+    float: left;
+    width: 30vh;
+    height: 6vh;
+    margin : 1vh;
+    border-radius: 5px;
+    margin-top: 0.5vh;
+}
+
+#imageNeigColor, #imageClassColor, #imageEdgeColor {
     width : 150%;
     margin-left: -25%;
 }
